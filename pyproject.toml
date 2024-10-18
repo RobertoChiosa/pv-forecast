@@ -1,0 +1,26 @@
+[tool.poetry]
+name = "pv-forecast"
+version = "0.1.0"
+description = "Comparison of different ANN algorithms to perform photovoltaic production forecast"
+authors = ["RobertoChiosa <roberto.chiosa@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "^3.11"
+
+
+[tool.poetry.group.dev.dependencies]
+black = "^24.8.0"
+isort = "^5.13.2"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.isort]
+profile = "black"
+import_heading_stdlib = "Standard library imports"
+import_heading_thirdparty = "Third party imports"
+import_heading_firstparty = "Project imports"
