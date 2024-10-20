@@ -9,6 +9,13 @@ package-mode = false
 
 [tool.poetry.dependencies]
 python = "^3.11"
+torch = "^2.5.0"
+pandas = "^2.2.3"
+numpy = "^2.1.2"
+matplotlib = "^3.9.2"
+scikit-learn = "^1.5.2"
+wandb = "^0.18.5"
+seaborn = "^0.13.2"
 
 
 [tool.poetry.group.dev.dependencies]

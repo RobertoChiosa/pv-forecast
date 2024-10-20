@@ -7,6 +7,8 @@ help:
 	@echo ''
 	$(call find.functions)
 
+
+
 .PHONY: setup
 update: ## Update dependency of the project
 setup:
@@ -22,3 +24,12 @@ rm-git-cache:
 	@echo "Removing git cached files"
 	git rm -r --cached .
 	git add .
+
+
+.PHONY: format
+format: ## Format according to black and isort
+format:
+	@echo "Formatting..."
+	source .venv/bin/activate && \
+	black . && \
+	isort .
