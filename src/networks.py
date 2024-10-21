@@ -1,7 +1,29 @@
+#  Copyright © Roberto Chiosa 2024.
+#  Email: roberto.chiosa@polito.it
+#  Last edited: 21/10/2024
+
 # Third party imports
 import torch
 
 device = "cpu"
+
+
+class Model():
+    """
+    Model class
+    """
+
+    def __init__(self, name: str, config: dict):
+        self.name = name
+        self.hidden_size = config["hidden_size"]
+        self.output_size = config["output_size"]
+        self.lookback = config["lookback"]
+        self.num_layers = config["num_layers"]
+        self.dropout_p = config["dropout_p"]
+        self.learning_rate = config["learning_rate"]
+        self.optimizer = config["optimizer"]
+        self.batch_size = config["batch_size"]
+        self.epochs = config["epochs"]
 
 
 class MLP(torch.nn.Module):

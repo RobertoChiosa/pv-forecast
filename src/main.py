@@ -1,6 +1,6 @@
 #  Copyright © Roberto Chiosa 2024.
 #  Email: roberto.chiosa@polito.it
-#  Last edited: 20/10/2024
+#  Last edited: 21/10/2024
 
 # Standard library imports
 import json
@@ -16,11 +16,9 @@ import wandb
 from sklearn.preprocessing import MinMaxScaler
 
 # Project imports
-from networks import LSTM, MLP
-from utils.processing import dataset_dataloader, data_preparation
+from networks import LSTM, MLP, Model
+from utils.processing import dataset_dataloader, data_preparation_gim
 from utils.visualization import *
-
-net = "MLP"
 
 if __name__ == "__main__":
 
@@ -33,19 +31,22 @@ if __name__ == "__main__":
     with open(os.path.join("utils", "config.json")) as f:
         config = json.load(f)
 
+    net = Model(name="MLP", config=config['MLP'])
+
     if config["wandb"]["on"]:
         logger.info("Wandb is on")
         wandb.init(
             project=config["wandb"]["project_name"],
             entity=config["wandb"]["entity"],
-            name=net + config["wandb"]["run_name"],
+            name=net.name + config["wandb"]["run_name"],
             config=config,
         )
     else:
         logger.info("Wandb is off")
 
     # 1. DATA PREPARATION
-    data_df = data_preparation(filename=os.path.join("data", "dataset_final.csv"))
+    data_df = data_preparation_gim(filename=os.path.join("data", "dataset_final.csv"))
+    # data_df = data_preparation_pv(filename=os.path.join("data", "data.csv"))
 
     # 2. DATA TRANSFORMATION
     # drop the Timestamp column
@@ -89,59 +90,59 @@ if __name__ == "__main__":
     train_df = scaler.fit_transform(train_df)
     test_df = scaler.transform(test_df)
 
-    # Split the data in input and output
-    train_x, train_y = train_df[:, :-1], train_df[:, -1]
-    test_x, test_y = test_df[:, :-1], test_df[:, -1]
+    # Split the data in input and output (nb. the output is the last column)
+    train_x, train_y = train_df[:, :-1], train_df[:, 1]
+    test_x, test_y = test_df[:, :-1], test_df[:, 1]
 
     input_size = train_x.shape[-1]
 
     # Dataset and dataloader
     train_tensor, train_loader = dataset_dataloader(
-        train_x, train_y, config[net]["batch_size"], shuffle=True
+        train_x, train_y, net.batch_size, shuffle=True
     )
     test_tensor, test_loader = dataset_dataloader(
-        test_x, test_y, config[net]["batch_size"], shuffle=False
+        test_x, test_y, net.batch_size, shuffle=False
     )
 
     # 3. MODEL INITIALIZATION
-    if net == "MLP":
+    if net.name == "MLP":
         model = MLP(
             input_size=input_size,
-            hidden_size=config[net]["hidden_size"],
-            output_size=config[net]["output_size"],
-            num_layers=config[net]["num_layers"],
-            dropout_p=config[net]["dropout_p"],
+            hidden_size=net.hidden_size,
+            output_size=net.output_size,
+            num_layers=net.num_layers,
+            dropout_p=net.dropout_p,
         )
 
-    elif net == "LSTM":
+    elif net.name == "LSTM":
         model = LSTM(
             input_size=input_size,
-            hidden_size=config[net]["hidden_size"],
-            output_size=config[net]["output_size"],
-            num_layers=config[net]["num_layers"],
-            dropout_p=config[net]["dropout_p"],
+            hidden_size=net.hidden_size,
+            output_size=net.output_size,
+            num_layers=net.num_layers,
+            dropout_p=net.dropout_p,
         )
 
     # Initialize the optimizer and loss function criterion
     criterion = torch.nn.MSELoss()
-    optimizer = getattr(torch.optim, config[net]["optimizer"])(
-        model.parameters(), lr=config[net]["learning_rate"]
+    optimizer = getattr(torch.optim, net.optimizer)(
+        model.parameters(), lr=net.learning_rate
     )
 
     # 4. TRAINING
     loss_train = []
 
-    for epoch in range(config[net]["epochs"]):
+    for epoch in range(net.epochs):
         model.train()
-        if net == "LSTM":
-            h = model.init_hidden(config[net]["batch_size"])
+        if net.name == "LSTM":
+            h = model.init_hidden(net.batch_size)
 
         for batch in train_loader:
             input, target = batch
             target = target.view(-1, 1)  # Reshape the target tensor
             # forward pass
-            if net == "LSTM":
-                h = model.init_hidden(config[net]["batch_size"])
+            if net.name == "LSTM":
+                h = model.init_hidden(net.batch_size)
                 h = tuple([each.data for each in h])
                 input = input.unsqueeze(1)
                 output, h = model(input, h)
@@ -154,22 +155,22 @@ if __name__ == "__main__":
             optimizer.step()
             loss_train.append(loss.item())
 
-        logger.info(f'Epoch {epoch}/{config[net]["epochs"]}, Loss: {loss_train[-1]}')
+        logger.info(f'Epoch {epoch}/{net.epochs}, Loss: {loss_train[-1]}')
 
         if config["wandb"]["on"]:
             wandb.log({"Loss Train": loss_train[-1]})
 
     # 5. TESTING
     model.eval()
-    if net == "LSTM":
-        model.init_hidden(config[net]["batch_size"])
+    if net.name == "LSTM":
+        model.init_hidden(net.batch_size)
 
     with torch.no_grad():
         predictions = []
         actual = []
         for batch in test_loader:
             input_test, target_test = batch
-            if net == "LSTM":
+            if net.name == "LSTM":
                 input_test = input_test.unsqueeze(1)
                 output, h = model(input_test, h)
                 optimizer.zero_grad()
@@ -230,4 +231,4 @@ if __name__ == "__main__":
     )
 
     # save the dataframe in a csv file
-    df.to_csv(os.path.join("data", f"predictions_{net}.csv"), index=False)
+    df.to_csv(os.path.join("data", f"predictions_{net.name}.csv"), index=False)
