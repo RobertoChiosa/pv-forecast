@@ -1,6 +1,6 @@
 #  Copyright © Roberto Chiosa 2024.
 #  Email: roberto.chiosa@polito.it
-#  Last edited: 21/10/2024
+#  Last edited: 24/10/2024
 
 # Standard library imports
 import json
@@ -9,7 +9,6 @@ import os
 from logging import getLogger
 
 # Third party imports
-import numpy as np
 import pandas as pd
 import torch
 import wandb
@@ -17,21 +16,24 @@ from sklearn.preprocessing import MinMaxScaler
 
 # Project imports
 from networks import LSTM, MLP, Model
-from utils.processing import dataset_dataloader, data_preparation_gim
+from utils.processing import dataset_dataloader, data_train_test_split, data_preparation_pv
 from utils.visualization import *
 
 if __name__ == "__main__":
+    # net algorithm
+    net_type = 'LSTM'
 
     # setup logging
     logger = getLogger(__name__)
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    logging.basicConfig(level=logging.INFO,
+                        format="%(asctime)s [%(levelname)s] %(name)s.%(funcName)s:%(lineno)d - %(message)s")
 
     # Read configuration
     logger.info("Reading configuration")
     with open(os.path.join("utils", "config.json")) as f:
         config = json.load(f)
 
-    net = Model(name="MLP", config=config['MLP'])
+    net = Model(name=net_type, config=config[net_type])
 
     if config["wandb"]["on"]:
         logger.info("Wandb is on")
@@ -45,45 +47,13 @@ if __name__ == "__main__":
         logger.info("Wandb is off")
 
     # 1. DATA PREPARATION
-    data_df = data_preparation_gim(filename=os.path.join("data", "dataset_final.csv"))
-    # data_df = data_preparation_pv(filename=os.path.join("data", "data.csv"))
+    # data_df = data_preparation_gim(filename=os.path.join("data", "dataset_final.csv"))
+    data_df = data_preparation_pv(filename=os.path.join("data", "data_9000.csv"))
 
     # 2. DATA TRANSFORMATION
     # drop the Timestamp column
     data_df = data_df.drop(columns=["Timestamp"])
-
-    # Subset the dataset in 4 portions. For each portion select the first 80% of the data as training set and the
-    # remaining 20% as test set Then merge all in two datasets: train and test
-    train_df = pd.DataFrame()
-    test_df = pd.DataFrame()
-
-    # Calculate the size of each portion
-    portion_size = len(data_df) // 4
-
-    # Iterate over the 4 portions
-    for i in range(4):
-        # Calculate the start and end indices for the portion
-        start_index = i * portion_size
-        end_index = start_index + portion_size
-
-        # Subset the portion from the dataset
-        portion = data_df.iloc[start_index:end_index]
-
-        # Split the portion into training and test data
-        train_end_index = int(0.8 * len(portion))
-        train_portion = portion.iloc[:train_end_index]
-        test_portion = portion.iloc[train_end_index:]
-
-        # Append the training and test data to train_df and test_df
-        train_df = pd.concat([train_df, train_portion])
-        test_df = pd.concat([test_df, test_portion])
-
-    # train_df = data_df.iloc[round(len(data_df)*0.8):]
-    # test_df = data_df.iloc[:round(len(data_df)*0.8)]
-
-    # Convert the dataframes in numpy arrays
-    train_df = train_df.to_numpy().astype(np.float32)
-    test_df = test_df.to_numpy().astype(np.float32)
+    train_df, test_df = data_train_test_split(data_df)
 
     # Normalize the data min max scaling
     scaler = MinMaxScaler()
@@ -202,28 +172,34 @@ if __name__ == "__main__":
 
         try:
             mape_test = np.mean(np.abs((actual - predictions) / actual)) * 100
-        except:
+        except ZeroDivisionError:
+            logger.warning("Actual values contain zero values, fixing MAPE calculation")
             mape_test = (
                     np.mean(np.abs((actual - predictions) / (actual + 1e-10))) * 100
             )
 
-        logger.info(f"RMSE: {rmse_test:.2f}, MAPE: {mape_test:.3f}, R2: {r2_test:.2f}")
+        logger.info(f"RMSE_test: {rmse_test:.4f}, MAPE_test: {mape_test:.4f}, R2_test: {r2_test:.4f}")
 
     # Plot the prediction and actual
-    fig_test = plot_graph(ypred=predictions, ylab=actual, title="Test")
-    error_dist = error_distribution(predictions, actual)
-    scatter = plot_scatter(predictions, actual)
+    fig_line_plot = plot_graph(y_pred=predictions, y_real=actual, title="Test")
+    fig_error_dist = error_distribution(y_pred=predictions, y_real=actual)
+    fig_scatter = plot_scatter(y_pred=predictions, y_real=actual)
 
     if config["wandb"]["on"]:
         wandb.log({"RMSE Test": rmse_test, "MAPE Test": mape_test, "R2 Test": r2_test})
-        wandb.log({"Test": fig_test})
-        wandb.log({"Error Distribution": [wandb.Image(error_dist)]})
-        wandb.log({"Scatter": [wandb.Image(scatter)]})
+        wandb.log({"Test": fig_line_plot})
+        wandb.log({"Error Distribution": [wandb.Image(fig_error_dist)]})
+        wandb.log({"Scatter": [wandb.Image(fig_scatter)]})
     else:
-        logger.info({"RMSE Test": rmse_test, "MAPE Test": mape_test, "R2 Test": r2_test})
-        fig_test.show()
-        error_dist.show()
-        scatter.show()
+        fig_line_plot.savefig(
+            os.path.join('out', f"{net.name}_line_plot.png")
+        )
+        fig_error_dist.savefig(
+            os.path.join('out', f"{net.name}_error.png")
+        )
+        fig_scatter.savefig(
+            os.path.join('out', f"{net.name}_scatter.png")
+        )
 
     # create a dataframe with the predictions and the actual
     df = pd.DataFrame(
