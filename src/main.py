@@ -24,8 +24,13 @@ from utils.processing import (
 from utils.visualization import *
 
 if __name__ == "__main__":
+
+    seed = 123
+    np.random.seed(seed)
+
     # net algorithm
-    net_type = "MLP"
+    net_type = "LSTM"
+    pv_name = "PV_Cittadella"
 
     # setup logging
     logger = getLogger(__name__)
@@ -54,13 +59,13 @@ if __name__ == "__main__":
 
     # 1. DATA PREPARATION
     # data_df = data_preparation_gim(filename=os.path.join("data", "dataset_final.csv"))
-    data_df = data_preparation_pv(filename=os.path.join("data", "data_9000.csv"))
+    data_df = data_preparation_pv(filename=os.path.join("data", f"{pv_name}_preprocessed.csv"))
     fig_raw_line_plot = plot_raw(data_df, title="Test")
-    fig_raw_line_plot.savefig(os.path.join("out", f"{net.name}_raw.png"))
+    fig_raw_line_plot.savefig(os.path.join("out", f"{pv_name}_{net.name}_raw.png"))
 
     # 2. DATA TRANSFORMATION
-    # drop the Timestamp column
-    data_df = data_df.drop(columns=["Timestamp"])
+    # drop the _time column
+    data_df = data_df.drop(columns=["_time"])
     train_df, test_df = data_train_test_split(data_df)
 
     # Normalize the data min max scaling
@@ -108,35 +113,47 @@ if __name__ == "__main__":
     )
 
     # 4. TRAINING
-    loss_train = []
+    epoch_losses = []  # List to store average loss for each epoch
 
-    for epoch in range(net.epochs):
+    for j, epoch in enumerate(range(net.epochs)):
+        epoch_loss = 0.0  # Variable to accumulate loss over the epoch
+        num_batches = 0  # Variable to count the number of batches
+
         model.train()
         if net.name == "LSTM":
             h = model.init_hidden(net.batch_size)
 
-        for batch in train_loader:
-            input, target = batch
-            target = target.view(-1, 1)  # Reshape the target tensor
+        for train_input, train_target in train_loader:
+            train_target = train_target.view(-1, 1)  # Reshape the target tensor
             # forward pass
             if net.name == "LSTM":
                 h = model.init_hidden(net.batch_size)
                 h = tuple([each.data for each in h])
-                input = input.unsqueeze(1)
-                output, h = model(input, h)
+                train_input = train_input.unsqueeze(1)
+                output, h = model(train_input, h)
             else:
-                output = model(input)
-            loss = criterion(output, target)
-            # backward pass
+                output = model(train_input)
+
+            loss = criterion(output, train_target)
+            # Backward and optimize
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            loss_train.append(loss.item())
 
-        logger.info(f"Epoch {epoch}/{net.epochs}, Loss: {loss_train[-1]}")
+            # Accumulate loss
+            epoch_loss += loss.item()
+            num_batches += 1
+
+        # Calculate average loss for the epoch
+        avg_epoch_loss = epoch_loss / num_batches
+        epoch_losses.append(avg_epoch_loss)
+        logger.info(f"Epoch {epoch + 1}/{net.epochs}, Average Loss: {avg_epoch_loss}")
 
         if config["wandb"]["on"]:
-            wandb.log({"Loss Train": loss_train[-1]})
+            wandb.log({"Loss Train": epoch_losses[-1]})
+
+        if j > 0 and abs(epoch_losses[j - 1] - epoch_losses[j]) < 0.000001:
+            break
 
     # 5. TESTING
     model.eval()
@@ -144,8 +161,8 @@ if __name__ == "__main__":
         model.init_hidden(net.batch_size)
 
     with torch.no_grad():
-        predictions = []
-        actual = []
+        test_predictions = []
+        test_actual = []
         for batch in test_loader:
             input_test, target_test = batch
             if net.name == "LSTM":
@@ -156,42 +173,42 @@ if __name__ == "__main__":
             else:
                 output = model(input_test)
 
-            predictions.append(output.numpy())
-            actual.append(target_test.numpy())
+            test_predictions.append(output.numpy())
+            test_actual.append(target_test.numpy())
 
-        predictions = np.concatenate(predictions, axis=0)
-        actual = np.concatenate(actual, axis=0)
+        test_predictions = np.concatenate(test_predictions, axis=0)
+        test_actual = np.concatenate(test_actual, axis=0)
 
         # Rescale the predictions and actual
-        predictions = scaler.inverse_transform(
+        test_predictions = scaler.inverse_transform(
             np.concatenate(
-                (test_x[: len(predictions)], predictions.reshape(-1, 1)), axis=1
+                (test_x[: len(test_predictions)], test_predictions.reshape(-1, 1)), axis=1
             )
         )[:, -1]
-        actual = scaler.inverse_transform(
-            np.concatenate((test_x[: len(actual)], actual.reshape(-1, 1)), axis=1)
+        test_actual = scaler.inverse_transform(
+            np.concatenate((test_x[: len(test_actual)], test_actual.reshape(-1, 1)), axis=1)
         )[:, -1]
 
         # Calculate performance metrics
-        rmse_test = np.sqrt(np.mean((predictions - actual) ** 2))
-        r2_test = 1 - np.sum((actual - predictions) ** 2) / np.sum(
-            (actual - np.mean(actual)) ** 2
+        rmse_test = np.sqrt(np.mean((test_predictions - test_actual) ** 2))
+        r2_test = 1 - np.sum((test_actual - test_predictions) ** 2) / np.sum(
+            (test_actual - np.mean(test_actual)) ** 2
         )
 
         try:
-            mape_test = np.mean(np.abs((actual - predictions) / actual)) * 100
+            mape_test = np.mean(np.abs((test_actual - test_predictions) / test_actual)) * 100
         except ZeroDivisionError:
             logger.warning("Actual values contain zero values, fixing MAPE calculation")
-            mape_test = np.mean(np.abs((actual - predictions) / (actual + 1e-10))) * 100
+            mape_test = np.mean(np.abs((test_actual - test_predictions) / (test_actual + 1e-10))) * 100
 
         logger.info(
             f"RMSE_test: {rmse_test:.4f}, MAPE_test: {mape_test:.4f}, R2_test: {r2_test:.4f}"
         )
 
     # Plot the prediction and actual
-    fig_line_plot = plot_graph(y_pred=predictions, y_real=actual, title="Test")
-    fig_error_dist = error_distribution(y_pred=predictions, y_real=actual)
-    fig_scatter = plot_scatter(y_pred=predictions, y_real=actual)
+    fig_line_plot = plot_graph(y_pred=test_predictions, y_real=test_actual, title="Test")
+    fig_error_dist = error_distribution(y_pred=test_predictions, y_real=test_actual)
+    fig_scatter = plot_scatter(y_pred=test_predictions, y_real=test_actual)
 
     if config["wandb"]["on"]:
         wandb.log({"RMSE Test": rmse_test, "MAPE Test": mape_test, "R2 Test": r2_test})
@@ -199,14 +216,13 @@ if __name__ == "__main__":
         wandb.log({"Error Distribution": [wandb.Image(fig_error_dist)]})
         wandb.log({"Scatter": [wandb.Image(fig_scatter)]})
     else:
-        fig_line_plot.savefig(os.path.join("out", f"{net.name}_line_plot.png"))
-        fig_error_dist.savefig(os.path.join("out", f"{net.name}_error.png"))
-        fig_scatter.savefig(os.path.join("out", f"{net.name}_scatter.png"))
+        fig_line_plot.savefig(os.path.join("out", f"{pv_name}_{net.name}_line_plot.png"))
+        fig_error_dist.savefig(os.path.join("out", f"{pv_name}_{net.name}_error.png"))
+        fig_scatter.savefig(os.path.join("out", f"{pv_name}_{net.name}_scatter.png"))
 
     # create a dataframe with the predictions and the actual
     df = pd.DataFrame(
-        {"Predictions": predictions.flatten(), "Actual": actual.flatten()}
+        {"Predictions": test_predictions.flatten(), "Actual": test_actual.flatten()}
     )
 
     # save the dataframe in a csv file
-    df.to_csv(os.path.join("data", f"predictions_{net.name}.csv"), index=False)

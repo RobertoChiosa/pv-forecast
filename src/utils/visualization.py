@@ -18,12 +18,10 @@ def plot_raw(data_df, title) -> plt.Figure:
     :param title:
     :return:
     """
-    df_plot = data_df.drop(columns=["Timestamp"])
-    subplots_n = len(df_plot.columns)
-    fig, axs = plt.subplots(subplots_n, 1, figsize=(15, 1.8 * subplots_n))
-    for i, col in enumerate(df_plot.columns):
-        axs[i].plot(df_plot[col], label=col)
-        axs[i].legend()
+    subplots_n = len(data_df.columns)
+    fig, axs = plt.subplots(subplots_n, 1, figsize=(15, 1.5 * subplots_n))
+    for i, col in enumerate(data_df.columns):
+        axs[i].plot(data_df['_time'], data_df[col], label=col)
 
     return fig
 
@@ -41,7 +39,7 @@ def plot_graph(y_pred, y_real, title) -> plt.Figure:
     ax.plot(y_real, linestyle="dashed", linewidth=1, label="Actual")
     ax.grid(True, color="#666666", linestyle="-")
     ax.minorticks_on()
-    ax.set_ylabel("Mean Air Temperature [°C]")
+    ax.set_ylabel("Power [kW]")
     ax.set_xlabel("Time")
     ax.set_title(title)
     ax.legend()

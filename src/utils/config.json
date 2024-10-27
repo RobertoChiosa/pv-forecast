@@ -1,13 +1,13 @@
 {
   "MLP": {
-    "hidden_size": 64,
+    "hidden_size": 256,
     "output_size": 1,
     "lookback": 48,
     "num_layers": 2,
     "dropout_p": 0.0,
-    "learning_rate": 0.01,
+    "learning_rate": 0.001,
     "optimizer": "Adam",
-    "batch_size": 32,
+    "batch_size": 64,
     "epochs": 100
   },
   "LSTM": {
@@ -18,7 +18,7 @@
     "dropout_p": 0.0,
     "learning_rate": 0.01,
     "optimizer": "Adam",
-    "batch_size": 288,
+    "batch_size": 64,
     "epochs": 100
   },
   "wandb": {

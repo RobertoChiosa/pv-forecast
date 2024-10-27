@@ -21,7 +21,7 @@ def data_preparation_gim(filename: str) -> pd.DataFrame:
     data_df = pd.read_csv(filename)
 
     col_names = [
-        "Timestamp",
+        "_time",
         "Tae (degC (Ave))",
         "Cav_Ta_outlet (degC (Ave))",
         "HEX1_Ts_mid_up (degC (Ave))",
@@ -33,11 +33,11 @@ def data_preparation_gim(filename: str) -> pd.DataFrame:
     # from data_df extract the columns that are in col_names
     data_df = data_df[col_names]
 
-    # Convert the 'Timestamp' column to datetime
-    data_df["Timestamp"] = pd.to_datetime(data_df["Timestamp"])
+    # Convert the '_time' column to datetime
+    data_df["_time"] = pd.to_datetime(data_df["_time"])
 
     # Create a column with the hour of the day
-    data_df["hour"] = data_df["Timestamp"].dt.hour
+    data_df["hour"] = data_df["_time"].dt.hour
 
     # transform the hour column in a sin and cos variable
     data_df["sin_hour"] = np.sin(2 * np.pi * data_df["hour"] / 24)
@@ -51,7 +51,7 @@ def data_preparation_gim(filename: str) -> pd.DataFrame:
 
     # Granularity Check
     # Calculate the difference between consecutive timestamps
-    time_diff = data_df["Timestamp"].diff()
+    time_diff = data_df["_time"].diff()
 
     # remove all the rows where the difference is not 15 minutes
     data_df = data_df[time_diff == pd.Timedelta("0 days 00:15:00")]
@@ -67,27 +67,27 @@ def data_preparation_pv(filename: str) -> pd.DataFrame:
     logger.info(f"Reading data from {filename}")
     data_df = pd.read_csv(filename)
     # coerce avoiding read errors
-    data_df["ElectricPower"] = data_df["ElectricPower"].apply(
+    data_df["power"] = data_df["power"].apply(
         pd.to_numeric, errors="coerce", downcast="float"
     )
 
-    # Convert the 'Timestamp' column to datetime
-    data_df["Timestamp"] = pd.to_datetime(data_df["Timestamp"])
+    # Convert the '_time' column to datetime
+    data_df["_time"] = pd.to_datetime(data_df["_time"])
 
     # tod add interpolation and resample if necessary
 
     # Granularity Check
     # Calculate the difference between consecutive timestamps
-    time_diff = data_df["Timestamp"].diff()
+    time_diff = data_df["_time"].diff()
 
     # put the y to be predicted as column as the last column
     data_df = data_df[
-        [col for col in data_df.columns if col != "ElectricPower"] + ["ElectricPower"]
+        [col for col in data_df.columns if col != "power"] + ["power"]
         ]
 
     # remove all the rows where the difference is not 15 minutes
     data_df = data_df[time_diff == pd.Timedelta("0 days 00:15:00")]
-    # remove all the rows where the ElectricPower is NaN
+    # remove all the rows where the power is NaN
     data_df = data_df.dropna()
     return data_df
 
@@ -134,16 +134,13 @@ def data_train_test_split(df: pd.DataFrame) -> tuple:
         portion = df.iloc[start_index:end_index]
 
         # Split the portion into training and test data
-        train_end_index = int(0.8 * len(portion))
+        train_end_index = int(0.7 * len(portion))
         train_portion = portion.iloc[:train_end_index]
         test_portion = portion.iloc[train_end_index:]
 
         # Append the training and test data to df_train and df_test
         df_train = pd.concat([df_train, train_portion])
         df_test = pd.concat([df_test, test_portion])
-
-    # df_train = data_df.iloc[round(len(data_df)*0.8):]
-    # df_test = data_df.iloc[:round(len(data_df)*0.8)]
 
     # Convert the dataframes in numpy arrays
     df_train = df_train.to_numpy().astype(np.float32)
