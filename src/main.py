@@ -1,6 +1,6 @@
 #  Copyright © Roberto Chiosa 2024.
 #  Email: roberto.chiosa@polito.it
-#  Last edited: 24/10/2024
+#  Last edited: 27/10/2024
 
 # Standard library imports
 import json
@@ -16,17 +16,23 @@ from sklearn.preprocessing import MinMaxScaler
 
 # Project imports
 from networks import LSTM, MLP, Model
-from utils.processing import dataset_dataloader, data_train_test_split, data_preparation_pv
+from utils.processing import (
+    data_preparation_pv,
+    data_train_test_split,
+    dataset_dataloader,
+)
 from utils.visualization import *
 
 if __name__ == "__main__":
     # net algorithm
-    net_type = 'LSTM'
+    net_type = "MLP"
 
     # setup logging
     logger = getLogger(__name__)
-    logging.basicConfig(level=logging.INFO,
-                        format="%(asctime)s [%(levelname)s] %(name)s.%(funcName)s:%(lineno)d - %(message)s")
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s.%(funcName)s:%(lineno)d - %(message)s",
+    )
 
     # Read configuration
     logger.info("Reading configuration")
@@ -49,6 +55,8 @@ if __name__ == "__main__":
     # 1. DATA PREPARATION
     # data_df = data_preparation_gim(filename=os.path.join("data", "dataset_final.csv"))
     data_df = data_preparation_pv(filename=os.path.join("data", "data_9000.csv"))
+    fig_raw_line_plot = plot_raw(data_df, title="Test")
+    fig_raw_line_plot.savefig(os.path.join("out", f"{net.name}_raw.png"))
 
     # 2. DATA TRANSFORMATION
     # drop the Timestamp column
@@ -125,7 +133,7 @@ if __name__ == "__main__":
             optimizer.step()
             loss_train.append(loss.item())
 
-        logger.info(f'Epoch {epoch}/{net.epochs}, Loss: {loss_train[-1]}')
+        logger.info(f"Epoch {epoch}/{net.epochs}, Loss: {loss_train[-1]}")
 
         if config["wandb"]["on"]:
             wandb.log({"Loss Train": loss_train[-1]})
@@ -174,11 +182,11 @@ if __name__ == "__main__":
             mape_test = np.mean(np.abs((actual - predictions) / actual)) * 100
         except ZeroDivisionError:
             logger.warning("Actual values contain zero values, fixing MAPE calculation")
-            mape_test = (
-                    np.mean(np.abs((actual - predictions) / (actual + 1e-10))) * 100
-            )
+            mape_test = np.mean(np.abs((actual - predictions) / (actual + 1e-10))) * 100
 
-        logger.info(f"RMSE_test: {rmse_test:.4f}, MAPE_test: {mape_test:.4f}, R2_test: {r2_test:.4f}")
+        logger.info(
+            f"RMSE_test: {rmse_test:.4f}, MAPE_test: {mape_test:.4f}, R2_test: {r2_test:.4f}"
+        )
 
     # Plot the prediction and actual
     fig_line_plot = plot_graph(y_pred=predictions, y_real=actual, title="Test")
@@ -191,15 +199,9 @@ if __name__ == "__main__":
         wandb.log({"Error Distribution": [wandb.Image(fig_error_dist)]})
         wandb.log({"Scatter": [wandb.Image(fig_scatter)]})
     else:
-        fig_line_plot.savefig(
-            os.path.join('out', f"{net.name}_line_plot.png")
-        )
-        fig_error_dist.savefig(
-            os.path.join('out', f"{net.name}_error.png")
-        )
-        fig_scatter.savefig(
-            os.path.join('out', f"{net.name}_scatter.png")
-        )
+        fig_line_plot.savefig(os.path.join("out", f"{net.name}_line_plot.png"))
+        fig_error_dist.savefig(os.path.join("out", f"{net.name}_error.png"))
+        fig_scatter.savefig(os.path.join("out", f"{net.name}_scatter.png"))
 
     # create a dataframe with the predictions and the actual
     df = pd.DataFrame(

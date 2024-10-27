@@ -8,7 +8,7 @@ import torch
 device = "cpu"
 
 
-class Model():
+class Model:
     """
     Model class
     """

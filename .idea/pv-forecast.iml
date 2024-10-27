@@ -6,6 +6,8 @@
       <excludeFolder url="file://$MODULE_DIR$/.venv/bin" />
       <excludeFolder url="file://$MODULE_DIR$/.venv/include" />
       <excludeFolder url="file://$MODULE_DIR$/.venv/lib" />
+      <excludeFolder url="file://$MODULE_DIR$/.venv" />
+      <excludeFolder url="file://$MODULE_DIR$/src/out" />
     </content>
     <orderEntry type="jdk" jdkName="Python 3.11 (pv-forecast-local)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />

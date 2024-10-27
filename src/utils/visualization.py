@@ -1,6 +1,6 @@
 #  Copyright © Roberto Chiosa 2024.
 #  Email: roberto.chiosa@polito.it
-#  Last edited: 24/10/2024
+#  Last edited: 27/10/2024
 
 # Standard library imports
 import warnings
@@ -9,6 +9,23 @@ import warnings
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
+
+
+def plot_raw(data_df, title) -> plt.Figure:
+    """
+    Plot the raw data
+    :param data_df:
+    :param title:
+    :return:
+    """
+    df_plot = data_df.drop(columns=["Timestamp"])
+    subplots_n = len(df_plot.columns)
+    fig, axs = plt.subplots(subplots_n, 1, figsize=(15, 1.8 * subplots_n))
+    for i, col in enumerate(df_plot.columns):
+        axs[i].plot(df_plot[col], label=col)
+        axs[i].legend()
+
+    return fig
 
 
 def plot_graph(y_pred, y_real, title) -> plt.Figure:
@@ -76,7 +93,9 @@ def error_distribution(y_pred, y_real) -> plt.Figure:
                 y = p.vertices[:, 1]
                 ax.fill_between(x, y, color="dodgerblue", alpha=0.3)
                 dens.axvline(x=0, color="dodgerblue", linestyle="dashed")
-                dens.set_xlim(-max(abs(error)), max(abs(error)))  # symmetric limits on x
+                dens.set_xlim(
+                    -max(abs(error)), max(abs(error))
+                )  # symmetric limits on x
                 dens.set_title("Error distribution")
     except Exception as e:
         print(e)

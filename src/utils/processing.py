@@ -1,6 +1,6 @@
 #  Copyright © Roberto Chiosa 2024.
 #  Email: roberto.chiosa@polito.it
-#  Last edited: 24/10/2024
+#  Last edited: 27/10/2024
 from logging import getLogger
 
 # Third party imports
@@ -67,7 +67,9 @@ def data_preparation_pv(filename: str) -> pd.DataFrame:
     logger.info(f"Reading data from {filename}")
     data_df = pd.read_csv(filename)
     # coerce avoiding read errors
-    data_df["ElectricPower"] = data_df["ElectricPower"].apply(pd.to_numeric, errors='coerce', downcast='float')
+    data_df["ElectricPower"] = data_df["ElectricPower"].apply(
+        pd.to_numeric, errors="coerce", downcast="float"
+    )
 
     # Convert the 'Timestamp' column to datetime
     data_df["Timestamp"] = pd.to_datetime(data_df["Timestamp"])
@@ -80,8 +82,7 @@ def data_preparation_pv(filename: str) -> pd.DataFrame:
 
     # put the y to be predicted as column as the last column
     data_df = data_df[
-        [col for col in data_df.columns if col != "ElectricPower"]
-        + ["ElectricPower"]
+        [col for col in data_df.columns if col != "ElectricPower"] + ["ElectricPower"]
         ]
 
     # remove all the rows where the difference is not 15 minutes
@@ -119,11 +120,12 @@ def data_train_test_split(df: pd.DataFrame) -> tuple:
     df_train = pd.DataFrame()
     df_test = pd.DataFrame()
 
+    portions = 1
     # Calculate the size of each portion
-    portion_size = len(df) // 4
+    portion_size = len(df) // portions
 
     # Iterate over the 4 portions
-    for i in range(4):
+    for i in range(portions):
         # Calculate the start and end indices for the portion
         start_index = i * portion_size
         end_index = start_index + portion_size
