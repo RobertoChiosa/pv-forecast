@@ -1,9 +1,9 @@
 #  Copyright © Roberto Chiosa 2024.
 #  Email: roberto.chiosa@polito.it
 #  Last edited: 29/10/2024
-# Standard library imports
 from logging import getLogger
 
+import numpy as np
 # Third party imports
 import torch
 from torch.utils.data import Dataset
@@ -44,7 +44,7 @@ class MLP(torch.nn.Module):
 
 
 class MLPTimeseriesDataset(Dataset):
-    def __init__(self, x, y):
+    def __init__(self, x: np.array, y: np.array):
         self.x = x
         self.y = y
 
@@ -53,8 +53,9 @@ class MLPTimeseriesDataset(Dataset):
 
     def __getitem__(self, index):
         # Return each sample and target as tensors
-        return torch.tensor(self.x[index], dtype=torch.float32), torch.tensor(
-            self.y[index], dtype=torch.float32
+        return (
+            torch.tensor(self.x[index], dtype=torch.float32),
+            torch.tensor(self.y[index], dtype=torch.float32),
         )
 
 
@@ -71,7 +72,7 @@ def train_mlp(model, optimizer, criterion, data_loader, epochs):
 
             # Forward pass
             outputs = model(inputs)
-            loss = criterion(outputs, targets)
+            loss = criterion(outputs.view(-1), targets)
 
             # Backward pass and optimization
             loss.backward()

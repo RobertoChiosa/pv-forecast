@@ -24,6 +24,21 @@ def plot_raw(data_df, title) -> plt.Figure:
     return fig
 
 
+def plot_loss(loss_list):
+    """
+    This function plots the loss over the epochs.
+    :param loss_list:
+    """
+    plt.figure(figsize=(6, 4))
+    plt.plot(range(len(loss_list)), loss_list, label="Training Loss")
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    plt.tight_layout()
+    plot = plt.gcf()
+    plt.close()
+    return plot
+
+
 def plot_graph(y_pred, y_real, title) -> plt.Figure:
     """
     Plot the graph

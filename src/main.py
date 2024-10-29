@@ -6,6 +6,7 @@
 import json
 import logging
 import os
+from datetime import timedelta
 from logging import getLogger
 
 # Third party imports
@@ -28,7 +29,7 @@ if __name__ == "__main__":
 
     # net algorithm
     net_type = "MLP"
-    pv_name = "PV_Aule_P"
+    pv_name = "PV_EC"
 
     # setup logging
     logger = getLogger(__name__)
@@ -45,9 +46,9 @@ if __name__ == "__main__":
     net = Net(name=net_type, config=config[net_type])
 
     # 1. DATA PREPARATION (already processed from csv generation)
-    data_df = pd.read_csv(
-        os.path.join("data", f"{pv_name}_preprocessed.csv")
-    )  # already processed
+
+    # Load the data already processed
+    data_df = pd.read_csv(os.path.join("data", f"{pv_name}_preprocessed.csv"))
     data_df["_time"] = pd.to_datetime(data_df["_time"])
     data_df.set_index("_time", inplace=True)
     fig_raw_line_plot = plot_raw(data_df, title="Test")
@@ -57,9 +58,46 @@ if __name__ == "__main__":
 
     # Ensure data is in the correct order by timestamp
     data_df = data_df.sort_index()
+    data_df = data_df[data_df["power"] > 0]
+    # get the min and max for each column
+    df_min = data_df.min()
+    df_min["power"] = 0
+    df_min["rad"] = 0
+    df_min["temp"] = -10
+    df_min["zenith"] = 0
+    df_min["azimuth"] = 0
+    df_min["ghi"] = 0
+
+    # Create a new row with the minimum values
+    new_min_row = pd.DataFrame(df_min).transpose()
+    new_min_row.index = [data_df.index[-1] + timedelta(minutes=15)]
+
+    df_max = data_df.max()
+    # df_max["power"] = 0
+    # df_max["rad"] = 0
+    df_max["temp"] = 45
+    df_max["zenith"] = 180
+    df_max["azimuth"] = 360
+    df_max["ghi"] = 1000
+
+    # Create a new row with the minimum values
+    new_max_row = pd.DataFrame(df_max).transpose()
+    new_max_row.index = [data_df.index[-1] + timedelta(minutes=15)]
+
+    # Append the new row to the DataFrame
+    data_df = pd.concat([data_df, new_min_row, new_max_row])
+
     # Scale the data
     scaler = MinMaxScaler()
     data_normalized = scaler.fit_transform(data_df)
+
+    # remove last 2 rows containing fake min max
+    data_normalized = data_normalized[:-2]
+    fig_raw_line_plot = plot_raw(pd.DataFrame(data_normalized), title="Test")
+    fig_raw_line_plot.savefig(
+        os.path.join("out", f"{pv_name}_{net.name}_normalized.png")
+    )
+
     # Separate features and target variable
     # the first is power so is y the others are x
     y = data_normalized[:, 0]
@@ -110,7 +148,7 @@ if __name__ == "__main__":
     criterion = torch.nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=net.learning_rate)
     if net.name == "MLP":
-        train_mlp(
+        loss_train = train_mlp(
             model=model,
             optimizer=optimizer,
             criterion=criterion,
@@ -118,7 +156,7 @@ if __name__ == "__main__":
             epochs=net.epochs,
         )
     elif net.name == "LSTM":
-        train_lstm(
+        loss_train = train_lstm(
             model=model,
             optimizer=optimizer,
             criterion=criterion,
@@ -127,6 +165,10 @@ if __name__ == "__main__":
         )
     else:
         raise ValueError("Invalid network type")
+
+    # Plot the loss
+    fig_loss = plot_loss(loss_train)
+    fig_loss.savefig(os.path.join("out", f"{pv_name}_{net.name}_loss.png"))
 
     # # 5. TESTING
     # model.eval()

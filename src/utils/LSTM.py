@@ -1,9 +1,9 @@
 #  Copyright © Roberto Chiosa 2024.
 #  Email: roberto.chiosa@polito.it
 #  Last edited: 29/10/2024
-# Standard library imports
 from logging import getLogger
 
+import numpy as np
 # Third party imports
 import torch
 from torch.utils.data import Dataset
@@ -55,7 +55,7 @@ class LSTM(torch.nn.Module):
 
 
 class LSTMSeriesDataset(Dataset):
-    def __init__(self, x, y, lookback=1):
+    def __init__(self, x: np.array, y: np.array, lookback=1):
         self.x = x
         self.y = y
         self.lookback = lookback
@@ -65,10 +65,10 @@ class LSTMSeriesDataset(Dataset):
 
     def __getitem__(self, index):
         # Get a sequence of `lookback` steps for each item (for LSTM)
-        x_seq = self.x[index : index + self.lookback]
+        x_seq = self.x[index: index + self.lookback]
         y_seq = self.y[
             index + self.lookback - 1
-        ]  # Target is the last step in the sequence
+            ]  # Target is the last step in the sequence
 
         # If using an MLP, you can flatten or directly return the final timestep
         return torch.tensor(x_seq, dtype=torch.float32), torch.tensor(
