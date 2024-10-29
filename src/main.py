@@ -16,7 +16,9 @@ from sklearn.preprocessing import MinMaxScaler
 from torch.utils.data import DataLoader
 
 # Project imports
-from networks import LSTM, MLP, Net, train_mlp, train_lstm, MLPTimeseriesDataset, LSTMSeriesDataset
+from src.utils.LSTM import LSTM, LSTMSeriesDataset, train_lstm
+from src.utils.MLP import MLP, MLPTimeseriesDataset, train_mlp
+from src.utils.processing import Net
 from utils.visualization import *
 
 if __name__ == "__main__":
@@ -126,80 +128,80 @@ if __name__ == "__main__":
     else:
         raise ValueError("Invalid network type")
 
-    # 5. TESTING
-    model.eval()
-    if net.name == "LSTM":
-        model.init_hidden(net.batch_size)
-
-    with torch.no_grad():
-        test_predictions = []
-        test_actual = []
-        for batch in test_loader:
-            input_test, target_test = batch
-            if net.name == "LSTM":
-                input_test = input_test.unsqueeze(1)
-                output, h = model(input_test, h)
-                optimizer.zero_grad()
-                loss_test = criterion(output, target_test)
-            else:
-                output = model(input_test)
-
-            test_predictions.append(output.numpy())
-            test_actual.append(target_test.numpy())
-
-        test_predictions = np.concatenate(test_predictions, axis=0)
-        test_actual = np.concatenate(test_actual, axis=0)
-
-        # Rescale the predictions and actual
-        test_predictions = scaler.inverse_transform(
-            np.concatenate(
-                (test_x[: len(test_predictions)], test_predictions.reshape(-1, 1)),
-                axis=1,
-            )
-        )[:, -1]
-        test_actual = scaler.inverse_transform(
-            np.concatenate(
-                (test_x[: len(test_actual)], test_actual.reshape(-1, 1)), axis=1
-            )
-        )[:, -1]
-
-        # Calculate performance metrics
-        rmse_test = np.sqrt(np.mean((test_predictions - test_actual) ** 2))
-        r2_test = 1 - np.sum((test_actual - test_predictions) ** 2) / np.sum(
-            (test_actual - np.mean(test_actual)) ** 2
-        )
-
-        try:
-            mape_test = (
-                    np.mean(np.abs((test_actual - test_predictions) / test_actual)) * 100
-            )
-        except ZeroDivisionError:
-            logger.warning("Actual values contain zero values, fixing MAPE calculation")
-            mape_test = (
-                    np.mean(
-                        np.abs((test_actual - test_predictions) / (test_actual + 1e-10))
-                    )
-                    * 100
-            )
-
-        logger.info(
-            f"RMSE_test: {rmse_test:.4f}, MAPE_test: {mape_test:.4f}, R2_test: {r2_test:.4f}"
-        )
-
-    # Plot the prediction and actual
-    fig_line_plot = plot_graph(
-        y_pred=test_predictions, y_real=test_actual, title="Test"
-    )
-    fig_error_dist = error_distribution(y_pred=test_predictions, y_real=test_actual)
-    fig_scatter = plot_scatter(y_pred=test_predictions, y_real=test_actual)
-
-    fig_line_plot.savefig(os.path.join("out", f"{pv_name}_{net.name}_line_plot.png"))
-    fig_error_dist.savefig(os.path.join("out", f"{pv_name}_{net.name}_error.png"))
-    fig_scatter.savefig(os.path.join("out", f"{pv_name}_{net.name}_scatter.png"))
-
-    # create a dataframe with the predictions and the actual
-    df = pd.DataFrame(
-        {"Predictions": test_predictions.flatten(), "Actual": test_actual.flatten()}
-    )
+    # # 5. TESTING
+    # model.eval()
+    # if net.name == "LSTM":
+    #     model.init_hidden(net.batch_size)
+    #
+    # with torch.no_grad():
+    #     test_predictions = []
+    #     test_actual = []
+    #     for batch in test_loader:
+    #         input_test, target_test = batch
+    #         if net.name == "LSTM":
+    #             input_test = input_test.unsqueeze(1)
+    #             output, h = model(input_test, h)
+    #             optimizer.zero_grad()
+    #             loss_test = criterion(output, target_test)
+    #         else:
+    #             output = model(input_test)
+    #
+    #         test_predictions.append(output.numpy())
+    #         test_actual.append(target_test.numpy())
+    #
+    #     test_predictions = np.concatenate(test_predictions, axis=0)
+    #     test_actual = np.concatenate(test_actual, axis=0)
+    #
+    #     # Rescale the predictions and actual
+    #     test_predictions = scaler.inverse_transform(
+    #         np.concatenate(
+    #             (test_x[: len(test_predictions)], test_predictions.reshape(-1, 1)),
+    #             axis=1,
+    #         )
+    #     )[:, -1]
+    #     test_actual = scaler.inverse_transform(
+    #         np.concatenate(
+    #             (test_x[: len(test_actual)], test_actual.reshape(-1, 1)), axis=1
+    #         )
+    #     )[:, -1]
+    #
+    #     # Calculate performance metrics
+    #     rmse_test = np.sqrt(np.mean((test_predictions - test_actual) ** 2))
+    #     r2_test = 1 - np.sum((test_actual - test_predictions) ** 2) / np.sum(
+    #         (test_actual - np.mean(test_actual)) ** 2
+    #     )
+    #
+    #     try:
+    #         mape_test = (
+    #                 np.mean(np.abs((test_actual - test_predictions) / test_actual)) * 100
+    #         )
+    #     except ZeroDivisionError:
+    #         logger.warning("Actual values contain zero values, fixing MAPE calculation")
+    #         mape_test = (
+    #                 np.mean(
+    #                     np.abs((test_actual - test_predictions) / (test_actual + 1e-10))
+    #                 )
+    #                 * 100
+    #         )
+    #
+    #     logger.info(
+    #         f"RMSE_test: {rmse_test:.4f}, MAPE_test: {mape_test:.4f}, R2_test: {r2_test:.4f}"
+    #     )
+    #
+    # # Plot the prediction and actual
+    # fig_line_plot = plot_graph(
+    #     y_pred=test_predictions, y_real=test_actual, title="Test"
+    # )
+    # fig_error_dist = error_distribution(y_pred=test_predictions, y_real=test_actual)
+    # fig_scatter = plot_scatter(y_pred=test_predictions, y_real=test_actual)
+    #
+    # fig_line_plot.savefig(os.path.join("out", f"{pv_name}_{net.name}_line_plot.png"))
+    # fig_error_dist.savefig(os.path.join("out", f"{pv_name}_{net.name}_error.png"))
+    # fig_scatter.savefig(os.path.join("out", f"{pv_name}_{net.name}_scatter.png"))
+    #
+    # # create a dataframe with the predictions and the actual
+    # df = pd.DataFrame(
+    #     {"Predictions": test_predictions.flatten(), "Actual": test_actual.flatten()}
+    # )
 
     # save the dataframe in a csv file
