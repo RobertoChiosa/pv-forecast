@@ -198,7 +198,3 @@ if __name__ == "__main__":
     fig_scatter.savefig(
         os.path.join("out", "plot", f"{pv_name}_{net.name}_scatter_test.png")
     )
-
-    # perform a prediction on the whole dataset simply given the model
-    df_export = df_raw.copy()
-    df_export["power"] = model(torch.tensor(x, dtype=torch.float32)).detach().numpy()
