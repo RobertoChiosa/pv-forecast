@@ -21,6 +21,7 @@ def plot_raw(data_df, title) -> plt.Figure:
     # each column on different plot share x
     fig, ax = plt.subplots(figsize=(10, 10), tight_layout=True)
     data_df.plot(ax=ax, subplots=True, sharex=True, title=title)
+    plt.close()
     return fig
 
 
@@ -91,7 +92,7 @@ def error_distribution(y_pred, y_real) -> plt.Figure:
     :param y_real:
     :return:
     """
-    error = y_pred - y_real
+    error = np.vstack(y_pred) - np.vstack(y_real)
     fig, ax = plt.subplots(figsize=(5, 5))
     ax.minorticks_on()
     try:

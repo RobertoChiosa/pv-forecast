@@ -17,8 +17,8 @@ from sklearn.preprocessing import MinMaxScaler
 from torch.utils.data import DataLoader
 
 # Project imports
-from src.utils.LSTM import LSTM, LSTMSeriesDataset, train_lstm
-from src.utils.MLP import MLP, MLPTimeseriesDataset, train_mlp
+from src.utils.LSTM import LSTM, LSTMSeriesDataset
+from src.utils.MLP import MLP, MLPTimeseriesDataset, test_mlp, train_mlp
 from src.utils.processing import Net
 from utils.visualization import *
 
@@ -29,7 +29,7 @@ if __name__ == "__main__":
 
     # net algorithm
     net_type = "MLP"
-    pv_name = "PV_EC"
+    pv_name = "PV_Cittadella"
 
     # setup logging
     logger = getLogger(__name__)
@@ -40,7 +40,7 @@ if __name__ == "__main__":
 
     # Read configuration
     logger.info("Reading configuration")
-    with open(os.path.join("utils", "config.json")) as f:
+    with open(os.path.join("config.json")) as f:
         config = json.load(f)
 
     net = Net(name=net_type, config=config[net_type])
@@ -48,19 +48,22 @@ if __name__ == "__main__":
     # 1. DATA PREPARATION (already processed from csv generation)
 
     # Load the data already processed
-    data_df = pd.read_csv(os.path.join("data", f"{pv_name}_preprocessed.csv"))
-    data_df["_time"] = pd.to_datetime(data_df["_time"])
-    data_df.set_index("_time", inplace=True)
-    fig_raw_line_plot = plot_raw(data_df, title="Test")
-    fig_raw_line_plot.savefig(os.path.join("out", f"{pv_name}_{net.name}_raw.png"))
+    df_raw = pd.read_csv(os.path.join("data", f"{pv_name}_preprocessed.csv"))
+    df_raw["_time"] = pd.to_datetime(df_raw["_time"])
+    df_raw.set_index("_time", inplace=True)
+    fig_raw_line_plot = plot_raw(df_raw, title="Test")
+    fig_raw_line_plot.savefig(
+        os.path.join("out", "plot", f"{pv_name}_{net.name}_raw.png")
+    )
 
     # 2. DATA TRANSFORMATION
 
     # Ensure data is in the correct order by timestamp
-    data_df = data_df.sort_index()
-    data_df = data_df[data_df["power"] > 0]
+    df_data = df_raw.copy()
+    df_data = df_data.sort_index()
+    df_data = df_data[df_data["power"] > 0]
     # get the min and max for each column
-    df_min = data_df.min()
+    df_min = df_data.min()
     df_min["power"] = 0
     df_min["rad"] = 0
     df_min["temp"] = -10
@@ -70,9 +73,9 @@ if __name__ == "__main__":
 
     # Create a new row with the minimum values
     new_min_row = pd.DataFrame(df_min).transpose()
-    new_min_row.index = [data_df.index[-1] + timedelta(minutes=15)]
+    new_min_row.index = [df_data.index[-1] + timedelta(minutes=15)]
 
-    df_max = data_df.max()
+    df_max = df_data.max()
     # df_max["power"] = 0
     # df_max["rad"] = 0
     df_max["temp"] = 45
@@ -82,26 +85,26 @@ if __name__ == "__main__":
 
     # Create a new row with the minimum values
     new_max_row = pd.DataFrame(df_max).transpose()
-    new_max_row.index = [data_df.index[-1] + timedelta(minutes=15)]
+    new_max_row.index = [df_data.index[-1] + timedelta(minutes=15)]
 
     # Append the new row to the DataFrame
-    data_df = pd.concat([data_df, new_min_row, new_max_row])
+    df_data = pd.concat([df_data, new_min_row, new_max_row])
 
     # Scale the data
     scaler = MinMaxScaler()
-    data_normalized = scaler.fit_transform(data_df)
+    df_normalized = scaler.fit_transform(df_data)
 
     # remove last 2 rows containing fake min max
-    data_normalized = data_normalized[:-2]
-    fig_raw_line_plot = plot_raw(pd.DataFrame(data_normalized), title="Test")
+    df_normalized = df_normalized[:-2]
+    fig_raw_line_plot = plot_raw(pd.DataFrame(df_normalized), title="Test")
     fig_raw_line_plot.savefig(
-        os.path.join("out", f"{pv_name}_{net.name}_normalized.png")
+        os.path.join("out", "plot", f"{pv_name}_{net.name}_normalized.png")
     )
 
     # Separate features and target variable
     # the first is power so is y the others are x
-    y = data_normalized[:, 0]
-    x = data_normalized[:, 1:]
+    y = df_normalized[:, 0]
+    x = df_normalized[:, 1:]
 
     # Split data into training and testing sets
     x_train, x_test, y_train, y_test = train_test_split(
@@ -148,102 +151,54 @@ if __name__ == "__main__":
     criterion = torch.nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=net.learning_rate)
     if net.name == "MLP":
-        loss_train = train_mlp(
+        loss_train, actual_values_train, predicted_values_train = train_mlp(
             model=model,
             optimizer=optimizer,
             criterion=criterion,
             data_loader=train_loader,
             epochs=net.epochs,
         )
+
+        loss_test, actual_values_test, predicted_values_test = test_mlp(
+            model=model,
+            criterion=criterion,
+            data_loader=test_loader,
+        )
+
     elif net.name == "LSTM":
-        loss_train = train_lstm(
+        loss_train, actual_values_train, predicted_values_train = train_mlp(
             model=model,
             optimizer=optimizer,
             criterion=criterion,
             data_loader=train_loader,
             epochs=net.epochs,
         )
+
+        loss_test, actual_values_test, predicted_values_test = test_mlp(
+            model=model,
+            criterion=criterion,
+            data_loader=test_loader,
+        )
+
     else:
         raise ValueError("Invalid network type")
 
-    # Plot the loss
+    # Plot
     fig_loss = plot_loss(loss_train)
-    fig_loss.savefig(os.path.join("out", f"{pv_name}_{net.name}_loss.png"))
+    fig_loss.savefig(os.path.join("out", "plot", f"{pv_name}_{net.name}_loss.png"))
 
-    # # 5. TESTING
-    # model.eval()
-    # if net.name == "LSTM":
-    #     model.init_hidden(net.batch_size)
-    #
-    # with torch.no_grad():
-    #     test_predictions = []
-    #     test_actual = []
-    #     for batch in test_loader:
-    #         input_test, target_test = batch
-    #         if net.name == "LSTM":
-    #             input_test = input_test.unsqueeze(1)
-    #             output, h = model(input_test, h)
-    #             optimizer.zero_grad()
-    #             loss_test = criterion(output, target_test)
-    #         else:
-    #             output = model(input_test)
-    #
-    #         test_predictions.append(output.numpy())
-    #         test_actual.append(target_test.numpy())
-    #
-    #     test_predictions = np.concatenate(test_predictions, axis=0)
-    #     test_actual = np.concatenate(test_actual, axis=0)
-    #
-    #     # Rescale the predictions and actual
-    #     test_predictions = scaler.inverse_transform(
-    #         np.concatenate(
-    #             (test_x[: len(test_predictions)], test_predictions.reshape(-1, 1)),
-    #             axis=1,
-    #         )
-    #     )[:, -1]
-    #     test_actual = scaler.inverse_transform(
-    #         np.concatenate(
-    #             (test_x[: len(test_actual)], test_actual.reshape(-1, 1)), axis=1
-    #         )
-    #     )[:, -1]
-    #
-    #     # Calculate performance metrics
-    #     rmse_test = np.sqrt(np.mean((test_predictions - test_actual) ** 2))
-    #     r2_test = 1 - np.sum((test_actual - test_predictions) ** 2) / np.sum(
-    #         (test_actual - np.mean(test_actual)) ** 2
-    #     )
-    #
-    #     try:
-    #         mape_test = (
-    #                 np.mean(np.abs((test_actual - test_predictions) / test_actual)) * 100
-    #         )
-    #     except ZeroDivisionError:
-    #         logger.warning("Actual values contain zero values, fixing MAPE calculation")
-    #         mape_test = (
-    #                 np.mean(
-    #                     np.abs((test_actual - test_predictions) / (test_actual + 1e-10))
-    #                 )
-    #                 * 100
-    #         )
-    #
-    #     logger.info(
-    #         f"RMSE_test: {rmse_test:.4f}, MAPE_test: {mape_test:.4f}, R2_test: {r2_test:.4f}"
-    #     )
-    #
-    # # Plot the prediction and actual
-    # fig_line_plot = plot_graph(
-    #     y_pred=test_predictions, y_real=test_actual, title="Test"
-    # )
-    # fig_error_dist = error_distribution(y_pred=test_predictions, y_real=test_actual)
-    # fig_scatter = plot_scatter(y_pred=test_predictions, y_real=test_actual)
-    #
-    # fig_line_plot.savefig(os.path.join("out", f"{pv_name}_{net.name}_line_plot.png"))
-    # fig_error_dist.savefig(os.path.join("out", f"{pv_name}_{net.name}_error.png"))
-    # fig_scatter.savefig(os.path.join("out", f"{pv_name}_{net.name}_scatter.png"))
-    #
-    # # create a dataframe with the predictions and the actual
-    # df = pd.DataFrame(
-    #     {"Predictions": test_predictions.flatten(), "Actual": test_actual.flatten()}
-    # )
+    fig_error_dist = error_distribution(
+        y_real=actual_values_test, y_pred=predicted_values_test
+    )
+    fig_error_dist.savefig(
+        os.path.join("out", "plot", f"{pv_name}_{net.name}_error_test.png")
+    )
 
-    # save the dataframe in a csv file
+    fig_scatter = plot_scatter(y_real=actual_values_test, y_pred=predicted_values_test)
+    fig_scatter.savefig(
+        os.path.join("out", "plot", f"{pv_name}_{net.name}_scatter_test.png")
+    )
+
+    # perform a prediction on the whole dataset simply given the model
+    df_export = df_raw.copy()
+    df_export["power"] = model(torch.tensor(x, dtype=torch.float32)).detach().numpy()

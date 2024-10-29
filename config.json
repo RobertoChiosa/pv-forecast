@@ -8,7 +8,7 @@
     "learning_rate": 0.001,
     "optimizer": "Adam",
     "batch_size": 64,
-    "epochs": 100
+    "epochs": 50
   },
   "LSTM": {
     "hidden_size": 16,
@@ -19,12 +19,6 @@
     "learning_rate": 0.001,
     "optimizer": "Adam",
     "batch_size": 64,
-    "epochs": 100
-  },
-  "wandb": {
-    "on": false,
-    "project_name": "PCM",
-    "entity": "Gim07",
-    "run_name": "final_dataset"
+    "epochs": 50
   }
 }

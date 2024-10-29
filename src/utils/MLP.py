@@ -1,11 +1,18 @@
 #  Copyright © Roberto Chiosa 2024.
 #  Email: roberto.chiosa@polito.it
 #  Last edited: 29/10/2024
+# Standard library imports
 from logging import getLogger
 
-import numpy as np
 # Third party imports
+import numpy as np
 import torch
+from sklearn.metrics import (
+    mean_absolute_error,
+    mean_absolute_percentage_error,
+    r2_score,
+    root_mean_squared_error,
+)
 from torch.utils.data import Dataset
 
 # setup logging
@@ -64,6 +71,8 @@ def train_mlp(model, optimizer, criterion, data_loader, epochs):
     Train the MLP model using a DataLoader.
     """
     loss_list = []
+    actual_values = []
+    predicted_values = []
 
     for j, epoch in enumerate(range(epochs)):
         epoch_loss = 0.0
@@ -80,6 +89,9 @@ def train_mlp(model, optimizer, criterion, data_loader, epochs):
 
             epoch_loss += loss.item()
 
+            actual_values.extend(targets.cpu().numpy())
+            predicted_values.extend(outputs.detach().numpy())
+
         avg_loss = epoch_loss / len(data_loader)
         loss_list.append(avg_loss)
         logger.info(f"[MLP Training] Epoch {epoch + 1}/{epochs}, Loss: {avg_loss:.4f}")
@@ -88,4 +100,51 @@ def train_mlp(model, optimizer, criterion, data_loader, epochs):
         if j > 0 and abs(loss_list[j - 1] - loss_list[j]) < 0.000001:
             break
 
-    return loss_list
+    train_mae = mean_absolute_error(actual_values, predicted_values)
+    train_r2 = r2_score(actual_values, predicted_values)
+    train_rmse = root_mean_squared_error(actual_values, predicted_values)
+    train_mape = mean_absolute_percentage_error(actual_values, predicted_values)
+    logger.info(
+        f"[MLP Training] MAE: {train_mae:.4f}, R2: {train_r2:.4f}, RMSE: {train_rmse:.4f}, MAPE: {train_mape:.4f}"
+    )
+
+    return loss_list, actual_values, predicted_values
+
+
+def test_mlp(model, data_loader, criterion):
+    """
+    Test the MLP model using a DataLoader.
+    :param model:
+    :param data_loader:
+    :param criterion:
+    :return:
+    """
+    model.eval()
+    loss_list = []
+    actual_values = []
+    predicted_values = []
+    with torch.no_grad():
+        for inputs, targets in data_loader:
+            inputs, targets = inputs.to(device), targets.to(device)
+
+            # Forward pass
+            outputs = model(inputs)
+            loss = criterion(outputs.view(-1), targets)
+
+            loss_list.append(loss.item())
+
+            actual_values.extend(targets.cpu().numpy())
+            predicted_values.extend(outputs.detach().numpy())
+
+    avg_loss = sum(loss_list) / len(data_loader)
+    logger.info(f"[MLP Testing] Average loss: {avg_loss:.4f}")
+
+    train_mae = mean_absolute_error(actual_values, predicted_values)
+    train_r2 = r2_score(actual_values, predicted_values)
+    train_rmse = root_mean_squared_error(actual_values, predicted_values)
+    train_mape = mean_absolute_percentage_error(actual_values, predicted_values)
+    logger.info(
+        f"[MLP Testing] MAE: {train_mae:.4f}, R2: {train_r2:.4f}, RMSE: {train_rmse:.4f}, MAPE: {train_mape:.4f}"
+    )
+
+    return loss_list, actual_values, predicted_values
