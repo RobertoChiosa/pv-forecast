@@ -1,7 +1,6 @@
 #  Copyright © Roberto Chiosa 2024.
 #  Email: roberto.chiosa@polito.it
 #  Last edited: 29/10/2024
-# Standard library imports
 from logging import getLogger
 
 # Third party imports
@@ -69,6 +68,12 @@ class MLPTimeseriesDataset(Dataset):
 def train_mlp(model, optimizer, criterion, data_loader, epochs):
     """
     Train the MLP model using a DataLoader.
+    :param model:
+    :param optimizer:
+    :param criterion:
+    :param data_loader:
+    :param epochs:
+    :return:
     """
     loss_list = []
     actual_values = []

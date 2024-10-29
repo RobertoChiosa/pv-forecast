@@ -4,7 +4,6 @@
 
 # Standard library imports
 import json
-import logging
 import os
 from datetime import timedelta
 from logging import getLogger
@@ -17,32 +16,30 @@ from sklearn.preprocessing import MinMaxScaler
 from torch.utils.data import DataLoader
 
 # Project imports
-from src.utils.LSTM import LSTM, LSTMSeriesDataset
+from src.utils.LSTM import LSTM, LSTMSeriesDataset, test_lstm, train_lstm
 from src.utils.MLP import MLP, MLPTimeseriesDataset, test_mlp, train_mlp
 from src.utils.processing import Net
 from utils.visualization import *
 
 if __name__ == "__main__":
 
+    # Set seed for reproducibility
     seed = 123
     np.random.seed(seed)
 
     # net algorithm
-    net_type = "MLP"
+    net_type = "LSTM"
     pv_name = "PV_Cittadella"
 
     # setup logging
     logger = getLogger(__name__)
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(name)s.%(funcName)s:%(lineno)d - %(message)s",
-    )
 
     # Read configuration
     logger.info("Reading configuration")
     with open(os.path.join("config.json")) as f:
         config = json.load(f)
 
+    # Initialize network
     net = Net(name=net_type, config=config[net_type])
 
     # 1. DATA PREPARATION (already processed from csv generation)
@@ -60,35 +57,37 @@ if __name__ == "__main__":
 
     # Ensure data is in the correct order by timestamp
     df_data = df_raw.copy()
-    df_data = df_data.sort_index()
-    df_data = df_data[df_data["power"] > 0]
-    # get the min and max for each column
-    df_min = df_data.min()
-    df_min["power"] = 0
-    df_min["rad"] = 0
-    df_min["temp"] = -10
-    df_min["zenith"] = 0
-    df_min["azimuth"] = 0
-    df_min["ghi"] = 0
 
-    # Create a new row with the minimum values
-    new_min_row = pd.DataFrame(df_min).transpose()
-    new_min_row.index = [df_data.index[-1] + timedelta(minutes=15)]
+    if net.name == "MLP":
+        df_data = df_data.sort_index()
+        df_data = df_data[df_data["power"] > 0]
+        # get the min and max for each column
+        df_min = df_data.min()
+        df_min["power"] = 0
+        df_min["rad"] = 0
+        df_min["temp"] = -10
+        df_min["zenith"] = 0
+        df_min["azimuth"] = 0
+        df_min["ghi"] = 0
 
-    df_max = df_data.max()
-    # df_max["power"] = 0
-    # df_max["rad"] = 0
-    df_max["temp"] = 45
-    df_max["zenith"] = 180
-    df_max["azimuth"] = 360
-    df_max["ghi"] = 1000
+        # Create a new row with the minimum values
+        new_min_row = pd.DataFrame(df_min).transpose()
+        new_min_row.index = [df_data.index[-1] + timedelta(minutes=15)]
 
-    # Create a new row with the minimum values
-    new_max_row = pd.DataFrame(df_max).transpose()
-    new_max_row.index = [df_data.index[-1] + timedelta(minutes=15)]
+        df_max = df_data.max()
+        # df_max["power"] = 0
+        # df_max["rad"] = 0
+        df_max["temp"] = 45
+        df_max["zenith"] = 180
+        df_max["azimuth"] = 360
+        df_max["ghi"] = 1000
 
-    # Append the new row to the DataFrame
-    df_data = pd.concat([df_data, new_min_row, new_max_row])
+        # Create a new row with the minimum values
+        new_max_row = pd.DataFrame(df_max).transpose()
+        new_max_row.index = [df_data.index[-1] + timedelta(minutes=15)]
+
+        # Append the new row to the DataFrame
+        df_data = pd.concat([df_data, new_min_row, new_max_row])
 
     # Scale the data
     scaler = MinMaxScaler()
@@ -166,7 +165,7 @@ if __name__ == "__main__":
         )
 
     elif net.name == "LSTM":
-        loss_train, actual_values_train, predicted_values_train = train_mlp(
+        loss_train, actual_values_train, predicted_values_train = train_lstm(
             model=model,
             optimizer=optimizer,
             criterion=criterion,
@@ -174,7 +173,7 @@ if __name__ == "__main__":
             epochs=net.epochs,
         )
 
-        loss_test, actual_values_test, predicted_values_test = test_mlp(
+        loss_test, actual_values_test, predicted_values_test = test_lstm(
             model=model,
             criterion=criterion,
             data_loader=test_loader,

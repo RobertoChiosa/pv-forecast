@@ -16,9 +16,9 @@
     "lookback": 48,
     "num_layers": 2,
     "dropout_p": 0.0,
-    "learning_rate": 0.001,
+    "learning_rate": 0.01,
     "optimizer": "Adam",
     "batch_size": 64,
-    "epochs": 50
+    "epochs": 100
   }
 }
