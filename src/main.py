@@ -12,6 +12,7 @@ from logging import getLogger
 import pandas as pd
 import torch
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import MinMaxScaler
 from torch.utils.data import DataLoader
 
 # Project imports
@@ -54,16 +55,15 @@ if __name__ == "__main__":
 
     # Ensure data is in the correct order by timestamp
     data_df = data_df.sort_index()
-
+    # Scale the data
+    scaler = MinMaxScaler()
+    data_normalized = scaler.fit_transform(data_df)
     # Separate features and target variable
-    x = data_df[
-        ["rad", "temp", "zenith", "azimuth", "ghi"]
-    ].values  # Convert to numpy array
-    y = data_df[["power"]].values  # Target variable as numpy array
+    # the first is power so is y the others are x
+    y = data_normalized[:, 0]
+    x = data_normalized[:, 1:]
 
     # Split data into training and testing sets
-    seed = 123
-    np.random.seed(seed)
     x_train, x_test, y_train, y_test = train_test_split(
         x, y, test_size=0.3, train_size=0.7, random_state=seed
     )
@@ -88,7 +88,7 @@ if __name__ == "__main__":
         model = MLP(
             input_size=train_dataset.x.shape[1],
             hidden_size=net.hidden_size,
-            output_size=train_dataset.y.shape[1],
+            output_size=net.output_size,
             num_layers=net.num_layers,
             dropout_p=net.dropout_p,
         )
@@ -97,7 +97,7 @@ if __name__ == "__main__":
         model = LSTM(
             input_size=train_dataset.x.shape[1],
             hidden_size=net.hidden_size,
-            output_size=train_dataset.y.shape[1],
+            output_size=net.output_size,
             num_layers=net.num_layers,
             dropout_p=net.dropout_p,
         )
