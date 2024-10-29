@@ -1,6 +1,6 @@
 #  Copyright © Roberto Chiosa 2024.
 #  Email: roberto.chiosa@polito.it
-#  Last edited: 27/10/2024
+#  Last edited: 29/10/2024
 
 # Standard library imports
 import warnings
@@ -18,11 +18,9 @@ def plot_raw(data_df, title) -> plt.Figure:
     :param title:
     :return:
     """
-    subplots_n = len(data_df.columns)
-    fig, axs = plt.subplots(subplots_n, 1, figsize=(15, 1.5 * subplots_n))
-    for i, col in enumerate(data_df.columns):
-        axs[i].plot(data_df['_time'], data_df[col], label=col)
-
+    # each column on different plot share x
+    fig, ax = plt.subplots(figsize=(10, 10), tight_layout=True)
+    data_df.plot(ax=ax, subplots=True, sharex=True, title=title)
     return fig
 
 
