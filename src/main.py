@@ -15,7 +15,7 @@ import wandb
 from sklearn.preprocessing import MinMaxScaler
 
 # Project imports
-from networks import LSTM, MLP, Model
+from networks import LSTM, MLP, Net, train_mlp, train_lstm
 from utils.processing import (
     data_train_test_split,
     dataset_dataloader,
@@ -28,7 +28,7 @@ if __name__ == "__main__":
     np.random.seed(seed)
 
     # net algorithm
-    net_type = "LSTM"
+    net_type = "MLP"
     pv_name = "PV_Aule_P"
 
     # setup logging
@@ -43,7 +43,7 @@ if __name__ == "__main__":
     with open(os.path.join("utils", "config.json")) as f:
         config = json.load(f)
 
-    net = Model(name=net_type, config=config[net_type])
+    net = Net(name=net_type, config=config[net_type])
 
     # 1. DATA PREPARATION (already processed from csv generation)
     data_df = pd.read_csv(os.path.join("data", f"{pv_name}_preprocessed.csv"))  # already processed
@@ -93,55 +93,18 @@ if __name__ == "__main__":
             num_layers=net.num_layers,
             dropout_p=net.dropout_p,
         )
-
-    # Initialize the optimizer and loss function criterion
-    criterion = torch.nn.MSELoss()
-    optimizer = getattr(torch.optim, net.optimizer)(
-        model.parameters(), lr=net.learning_rate
-    )
+    else:
+        raise ValueError("Invalid network type")
 
     # 4. TRAINING
-    epoch_losses = []  # List to store average loss for each epoch
-
-    for j, epoch in enumerate(range(net.epochs)):
-        epoch_loss = 0.0  # Variable to accumulate loss over the epoch
-        num_batches = 0  # Variable to count the number of batches
-
-        model.train()
-        if net.name == "LSTM":
-            h = model.init_hidden(net.batch_size)
-
-        for train_input, train_target in train_loader:
-            train_target = train_target.view(-1, 1)  # Reshape the target tensor
-            # forward pass
-            if net.name == "LSTM":
-                h = model.init_hidden(net.batch_size)
-                h = tuple([each.data for each in h])
-                train_input = train_input.unsqueeze(1)
-                output, h = model(train_input, h)
-            else:
-                output = model(train_input)
-
-            loss = criterion(output, train_target)
-            # Backward and optimize
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-
-            # Accumulate loss
-            epoch_loss += loss.item()
-            num_batches += 1
-
-        # Calculate average loss for the epoch
-        avg_epoch_loss = epoch_loss / num_batches
-        epoch_losses.append(avg_epoch_loss)
-        logger.info(f"Epoch {epoch + 1}/{net.epochs}, Average Loss: {avg_epoch_loss}")
-
-        if config["wandb"]["on"]:
-            wandb.log({"Loss Train": epoch_losses[-1]})
-
-        if j > 0 and abs(epoch_losses[j - 1] - epoch_losses[j]) < 0.000001:
-            break
+    criterion = torch.nn.MSELoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=net.learning_rate)
+    if net.name == "MLP":
+        train_mlp(model=model, optimizer=optimizer, criterion=criterion, data_loader=train_loader, epochs=net.epochs)
+    elif net.name == "LSTM":
+        train_lstm(model=model, optimizer=optimizer, criterion=criterion, data_loader=train_loader, epochs=net.epochs)
+    else:
+        raise ValueError("Invalid network type")
 
     # 5. TESTING
     model.eval()
