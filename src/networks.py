@@ -5,9 +5,12 @@ from logging import getLogger
 
 # Third party imports
 import torch
+from torch.utils.data import Dataset
 
 # setup logging
 logger = getLogger(__name__)
+
+device = 'cpu'
 
 
 class Net:
@@ -55,6 +58,19 @@ class MLP(torch.nn.Module):
             x = self.dropout(x)
         x = self.layers[-1](x)
         return x
+
+
+class MLPTimeseriesDataset(Dataset):
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+
+    def __len__(self):
+        return len(self.x)
+
+    def __getitem__(self, index):
+        # Return each sample and target as tensors
+        return torch.tensor(self.x[index], dtype=torch.float32), torch.tensor(self.y[index], dtype=torch.float32)
 
 
 def train_mlp(model, optimizer, criterion, data_loader, epochs):
@@ -127,6 +143,24 @@ class LSTM(torch.nn.Module):
         out = self.dropout(out)
         out = self.fc(out[:, -1, :])
         return out, hidden_cell_tuple
+
+
+class LSTMSeriesDataset(Dataset):
+    def __init__(self, x, y, lookback=1):
+        self.x = x
+        self.y = y
+        self.lookback = lookback
+
+    def __len__(self):
+        return len(self.x) - self.lookback + 1
+
+    def __getitem__(self, index):
+        # Get a sequence of `lookback` steps for each item (for LSTM)
+        x_seq = self.x[index:index + self.lookback]
+        y_seq = self.y[index + self.lookback - 1]  # Target is the last step in the sequence
+
+        # If using an MLP, you can flatten or directly return the final timestep
+        return torch.tensor(x_seq, dtype=torch.float32), torch.tensor(y_seq, dtype=torch.float32)
 
 
 def train_lstm(model, optimizer, criterion, data_loader, epochs):
