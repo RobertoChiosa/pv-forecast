@@ -1,6 +1,6 @@
 #  Copyright © Roberto Chiosa 2024.
 #  Email: roberto.chiosa@polito.it
-#  Last edited: 27/10/2024
+#  Last edited: 29/10/2024
 
 # Standard library imports
 import json
@@ -17,7 +17,6 @@ from sklearn.preprocessing import MinMaxScaler
 # Project imports
 from networks import LSTM, MLP, Model
 from utils.processing import (
-    data_preparation_pv,
     data_train_test_split,
     dataset_dataloader,
 )
@@ -30,7 +29,7 @@ if __name__ == "__main__":
 
     # net algorithm
     net_type = "LSTM"
-    pv_name = "PV_Cittadella"
+    pv_name = "PV_Aule_P"
 
     # setup logging
     logger = getLogger(__name__)
@@ -46,26 +45,15 @@ if __name__ == "__main__":
 
     net = Model(name=net_type, config=config[net_type])
 
-    if config["wandb"]["on"]:
-        logger.info("Wandb is on")
-        wandb.init(
-            project=config["wandb"]["project_name"],
-            entity=config["wandb"]["entity"],
-            name=net.name + config["wandb"]["run_name"],
-            config=config,
-        )
-    else:
-        logger.info("Wandb is off")
-
-    # 1. DATA PREPARATION
-    # data_df = data_preparation_gim(filename=os.path.join("data", "dataset_final.csv"))
-    data_df = data_preparation_pv(filename=os.path.join("data", f"{pv_name}_preprocessed.csv"))
+    # 1. DATA PREPARATION (already processed from csv generation)
+    data_df = pd.read_csv(os.path.join("data", f"{pv_name}_preprocessed.csv"))  # already processed
+    data_df["_time"] = pd.to_datetime(data_df["_time"])
+    data_df.set_index('_time', inplace=True)
     fig_raw_line_plot = plot_raw(data_df, title="Test")
     fig_raw_line_plot.savefig(os.path.join("out", f"{pv_name}_{net.name}_raw.png"))
 
     # 2. DATA TRANSFORMATION
     # drop the _time column
-    data_df = data_df.drop(columns=["_time"])
     train_df, test_df = data_train_test_split(data_df)
 
     # Normalize the data min max scaling
