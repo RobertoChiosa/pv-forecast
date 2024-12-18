@@ -1,6 +1,6 @@
 #  Copyright © Roberto Chiosa 2024.
 #  Email: roberto.chiosa@polito.it
-#  Last edited: 29/10/2024
+#  Last edited: 16/12/2024
 
 # Standard library imports
 import warnings
@@ -19,9 +19,29 @@ def plot_raw(data_df, title) -> plt.Figure:
     :return:
     """
     # each column on different plot share x
-    fig, ax = plt.subplots(figsize=(10, 10), tight_layout=True)
-    data_df.plot(ax=ax, subplots=True, sharex=True, title=title)
-    plt.close()
+    n_col = len(data_df.columns)
+    fig, axes = plt.subplots(
+        nrows=n_col, ncols=1,
+        figsize=(10, 2 * n_col),
+        sharex=True,  # Share the x-axis
+        sharey=True,  # Share the x-axis
+        tight_layout=False  # Adjust layout manually later
+    )
+
+    if n_col == 1:
+        axes = [axes]  # Ensure axes is a list even for a single subplot
+
+    # Plot each series and set y-axis labels as column names
+    for ax, col_name in zip(axes, data_df.columns):
+        data_df[col_name].plot(ax=ax)
+        ax.set_ylabel(col_name)  # Set y-axis title as column name
+
+    # Set the common x-axis label
+    axes[-1].set_xlabel("Index")  # Optional: a common x-axis label
+
+    # Adjust layout for better spacing
+    fig.tight_layout()
+    plt.close(fig)
     return fig
 
 

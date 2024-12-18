@@ -1,6 +1,6 @@
 #  Copyright © Roberto Chiosa 2024.
 #  Email: roberto.chiosa@polito.it
-#  Last edited: 29/10/2024
+#  Last edited: 18/12/2024
 from logging import getLogger
 
 # Third party imports
@@ -41,11 +41,20 @@ class LSTM(torch.nn.Module):
         :param x:
         :return:
         """
-        h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
-        c0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
+        # Ensure input is 3D
+        if len(x.shape) == 2:
+            x = x.unsqueeze(1)  # Add sequence dimension: (batch_size, sequence_length=1, input_size)
 
+        # Initialize hidden and cell states
+        h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)
+        c0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)
+
+        # LSTM forward pass
         out, _ = self.lstm(x, (h0, c0))
-        out = self.fc(out[:, -1, :])
+
+        # Apply dropout and fully connected layer to the last time step
+        out = self.dropout(out[:, -1, :])  # Take the output from the last time step
+        out = self.fc(out)
         return out
 
 

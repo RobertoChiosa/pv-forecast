@@ -16,6 +16,7 @@ matplotlib = "^3.9.2"
 scikit-learn = "^1.5.2"
 wandb = "^0.18.5"
 seaborn = "^0.13.2"
+skorch = "^1.0.0"
 
 
 [tool.poetry.group.dev.dependencies]

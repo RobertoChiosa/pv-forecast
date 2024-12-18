@@ -1,6 +1,6 @@
 #  Copyright © Roberto Chiosa 2024.
 #  Email: roberto.chiosa@polito.it
-#  Last edited: 29/10/2024
+#  Last edited: 18/12/2024
 
 # Standard library imports
 import json
@@ -11,8 +11,9 @@ from logging import getLogger
 # Third party imports
 import pandas as pd
 import torch
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.preprocessing import MinMaxScaler
+from skorch import NeuralNetRegressor
 from torch.utils.data import DataLoader
 
 # Project imports
@@ -28,8 +29,9 @@ if __name__ == "__main__":
     np.random.seed(seed)
 
     # net algorithm
-    net_type = "LSTM"
+    net_type = "MLP"
     pv_name = "PV_Cittadella"
+    grid_search = False
 
     # setup logging
     logger = getLogger(__name__)
@@ -51,6 +53,12 @@ if __name__ == "__main__":
     fig_raw_line_plot = plot_raw(df_raw, title="Test")
     fig_raw_line_plot.savefig(
         os.path.join("out", "plot", f"{pv_name}_{net.name}_raw.png")
+    )
+    # get subset of the row and plot
+    df_raw_subset = df_raw.loc["2023-09-20 00:00:00":"2023-10-05 23:59:59"]
+    fig_raw_line_plot = plot_raw(df_raw_subset, title="Test")
+    fig_raw_line_plot.savefig(
+        os.path.join("out", "plot", f"{pv_name}_{net.name}_raw_subset.png")
     )
 
     # 2. DATA TRANSFORMATION
@@ -88,16 +96,39 @@ if __name__ == "__main__":
 
         # Append the new row to the DataFrame
         df_data = pd.concat([df_data, new_min_row, new_max_row])
+        # Scale the data
+        scaler = MinMaxScaler()
+        df_normalized = scaler.fit_transform(df_data)
 
-    # Scale the data
-    scaler = MinMaxScaler()
-    df_normalized = scaler.fit_transform(df_data)
+        # remove last 2 rows containing fake min max
+        df_normalized = df_normalized[:-2]
+    elif net.name == "LSTM":
+        # Scale the data
+        scaler = MinMaxScaler()
+        df_normalized = scaler.fit_transform(df_data)
+    else:
+        raise ValueError("Invalid network type")
 
-    # remove last 2 rows containing fake min max
-    df_normalized = df_normalized[:-2]
-    fig_raw_line_plot = plot_raw(pd.DataFrame(df_normalized), title="Test")
-    fig_raw_line_plot.savefig(
+    fig_normalized_line_plot = plot_raw(pd.DataFrame(df_normalized), title="Test")
+    fig_normalized_line_plot.savefig(
         os.path.join("out", "plot", f"{pv_name}_{net.name}_normalized.png")
+    )
+    # get subset of the row and plot
+    df_normalized_subset = pd.DataFrame(df_normalized)[100:1000]
+    df_normalized_subset.rename(columns={
+        0: "Electrical Power",
+        1: "Solar Radiation",
+        2: "Air Temperature",
+    }, inplace=True)
+    df_normalized_subset_plot = df_normalized_subset.copy()[["Electrical Power", "Solar Radiation", "Air Temperature"]]
+
+    fig_normalized_line_plot = plot_raw(
+        data_df=df_normalized_subset_plot,
+        title="Normalized input variables",
+    )
+
+    fig_normalized_line_plot.savefig(
+        os.path.join("out", "plot", f"{pv_name}_{net.name}_normalized_subset.png")
     )
 
     # Separate features and target variable
@@ -145,6 +176,39 @@ if __name__ == "__main__":
         )
     else:
         raise ValueError("Invalid network type")
+
+    # HYPERPARAMETERS GRID SEARCH
+    # define the grid search parameters
+    # create the skorch wrapper
+    if grid_search:
+        model_grid = NeuralNetRegressor(
+            module=model,
+            criterion=torch.nn.MSELoss,
+            train_split=None,  # GridSearchCV will handle the splits
+            verbose=0,
+
+        )
+
+        param_grid = {
+            'max_epochs': [10, 50, 100],
+            'lr': [0.001, 0.01, 0.1],
+            "module__input_size": [train_dataset.x.shape[1]],
+            "module__output_size": [net.output_size],
+            "module__num_layers": [net.num_layers],
+            "module__dropout_p": [net.dropout_p],
+            'module__hidden_size': [16, 32, 64, 128, 256],
+        }
+        grid = GridSearchCV(estimator=model_grid, param_grid=param_grid, n_jobs=-1, cv=3,
+                            scoring='neg_mean_squared_error')
+        grid_result = grid.fit(x_train.astype(np.float32), y_train.astype(np.float32))
+
+        # summarize results
+        print("Best: %f using %s" % (grid_result.best_score_, grid_result.best_params_))
+        means = grid_result.cv_results_['mean_test_score']
+        stds = grid_result.cv_results_['std_test_score']
+        params = grid_result.cv_results_['params']
+        for mean, stdev, param in zip(means, stds, params):
+            print("%f (%f) with: %r" % (mean, stdev, param))
 
     # 4. TRAINING
     criterion = torch.nn.MSELoss()
@@ -197,3 +261,5 @@ if __name__ == "__main__":
     fig_scatter.savefig(
         os.path.join("out", "plot", f"{pv_name}_{net.name}_scatter_test.png")
     )
+    
+    # TEST
